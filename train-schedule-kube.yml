@@ -2,18 +2,20 @@ kind: Service
 apiVersion: v1
 metadata:
   name: train-schedule-service
+  annotations:
+    prometheus.io/scrape: 'true'
 spec:
   type: NodePort
   selector:
     app: train-schedule
   ports:
   - protocol: TCP
-    port: 8080
-    nodePort: 30001
+    port: 30001
+    nodePort: 8080
 
 ---
 
-apiVersion: apps/v1
+apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: train-schedule-deployment
@@ -31,7 +33,7 @@ spec:
     spec:
       containers:
       - name: train-schedule
-        image: linuxacademycontent/train-schedule:autoscaling
+        image: $DOCKER_IMAGE_NAME:$BUILD_NUMBER
         ports:
         - containerPort: 8080
         livenessProbe:
@@ -41,3 +43,26 @@ spec:
           initialDelaySeconds: 15
           timeoutSeconds: 1
           periodSeconds: 10
+        resources:
+          requests:
+            cpu: 200m
+
+---
+
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: train-schedule
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: train-schedule-deployment
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
